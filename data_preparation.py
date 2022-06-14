@@ -20,7 +20,7 @@ from InferSent.models import InferSent
 def load_data():
     snli_dataset = load_dataset("snli")
 
-    snli_premise = list(set(snli_dataset['train']['premise']))
+    snli_premise = list(set(snli_dataset['test']['premise']))
 
     return snli_premise
 
@@ -28,7 +28,7 @@ def load_data():
 def load_encoder(V=1, W2V_PATH='../InferSent/GloVe/glove.840B.300d.txt'):
     MODEL_PATH = f'../InferSent/encoder/infersent{V}.pkl'
 
-    params_model = {'bsize': 64, 'word_emb_dim': 300, 'enc_lstm_dim': 2048,
+    params_model = {'bsize': 64, 'word_emb_dim': 300, 'enc_lstm_dim':2048,
                     'pool_type': 'max', 'dpout_model': 0.0, 'version': V}
 
     infersent = InferSent(params_model)
@@ -54,7 +54,7 @@ def get_embeddings(encoder, dataset, batch_size):
 
 
 def save_output(embeddings, dataset, output_path, batch_size=1024):
-    final_df = pd.DataFrame(dataset[:batch_size], columns=['text'])
+    final_df = pd.DataFrame(dataset, columns=['text'])
 
     final_df['vector'] = embeddings.tolist()
     final_df['vector'] = final_df['vector'].astype(str)
@@ -70,7 +70,7 @@ def save_output(embeddings, dataset, output_path, batch_size=1024):
 
 def main():
     batch_size = 1024
-    output_path = "./data/snli_premise.data_from_train"
+    output_path = "./data/snli_premise.data_from_test"
 
     dataset = load_data()
 

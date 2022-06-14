@@ -490,7 +490,7 @@ def trainIters_tpr(train_data, dev_data, tpr_encoder, n_epochs,
                         if role_predictions[sequence_index][batch_index][role_prediction] < .98:
                             num_elements_role_low += 1
                         num_elements += 1
-                        roles_predicted.append(role_prediction)
+                        roles_predicted.append(role_prediction.cpu())
             else:
                 out = tpr_encoder(input_fillers, input_roles).data
             val_mse += torch.mean(torch.pow(out - target_variable.data, 2))
