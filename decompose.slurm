@@ -14,5 +14,5 @@ singularity exec --nv --bind /scratch --overlay /scratch/str8775/conda_env/compo
 source /ext3/env.sh
 cd /scratch/str8775/conda_env/compositional-generalisation/role-decomposition/
 echo 'Running in /scratch/str8775/conda_env/compositional-generalisation/role-decomposition/'
-python3 decompose.py --data_prefix snli_premise --num_roles 50 --filler_dim 300 --role_dim 50 --role_learning --vocab_size 4342 --digits False
+python3 decompose.py --data_prefix snli_premise --num_roles 50 --filler_dim 300 --role_dim 50 --role_learning --vocab_size 4342 --digits False --hidden_size 4096
 "
