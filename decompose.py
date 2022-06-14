@@ -199,6 +199,8 @@ if args.output_dir:
         for argument, value in sorted(vars(args).items()):
             arguments_file.write('{}: {}\n'.format(argument, value))
 
+print("**** Finished Creating Output Dir ****")
+
 # Create the logfile
 if output_dir:
     results_page = open(os.path.join(output_dir, 'log.txt'), 'w')
@@ -213,6 +215,8 @@ else:
             "logs/" + args.data_prefix.split("/")[-1] + str(args.role_prefix).split("/")[-1] + str(
                 args.role_scheme) + ".filler" + str(args.filler_dim) + ".role" + str(
                 args.role_dim) + "." + str(args.embed_squeeze) + ".tpr_decomp", "w")
+
+print("**** Finished Creating LOG Dir ****")
 
 # Load the decoder for computing swapping accuracy
 if args.test_decoder == "True" and not args.scan_checkpoint:
@@ -266,6 +270,7 @@ elif args.test_decoder == "True" and args.scan_checkpoint:
     input_lang = checkpoint['input_lang']
     output_lang = checkpoint['output_lang']
 
+print("**** Finished Loading Decoder ****")
 
 # Prepare the train, dev, and test data
 unindexed_train = []
@@ -297,6 +302,8 @@ for line in train_file:
             index_to_filler[filler_counter] = filler
             filler_counter += 1
 
+print("**** Finished Loading Train Dataset ****")
+
 dev_file = open(os.path.join(args.data_path, args.data_prefix + ".data_from_dev"), "r")
 for line in dev_file:
     sequence, vector = line.strip().split("\t")
@@ -311,6 +318,8 @@ for line in dev_file:
             filler_to_index[filler] = filler_counter
             index_to_filler[filler_counter] = filler
             filler_counter += 1
+
+print("**** Finished Loading Dev Dataset ****")
 
 if args.shuffle:
     print("Shuffling the input sequences and corresponding embeddings")
@@ -348,6 +357,8 @@ for line in test_file:
             filler_to_index[filler] = filler_counter
             index_to_filler[filler_counter] = filler
             filler_counter += 1
+
+print("**** Finished Loading Test Dataset ****")
 
 if args.extra_test_set is not None:
     extra_file = open(os.path.join(args.data_path, args.extra_test_set), "r")
@@ -485,6 +496,8 @@ elif args.role_scheme is not None:
 else:
     print("No role scheme specified")
 
+print("**** Finished Loading Pretrained ROLE Embeddings and ROLE Scheme ****")
+
 indexed_train_roles = [[role_to_index[role] for role in roles] for roles in unindexed_train_roles]
 indexed_dev_roles = [[role_to_index[role] for role in roles] for roles in unindexed_dev_roles]
 indexed_test_roles = [[role_to_index[role] for role in roles] for roles in unindexed_test_roles]
@@ -611,6 +624,8 @@ else:
 if use_cuda:
     tpr_encoder = tpr_encoder.cuda()
 
+print("**** Finished Loading Encoder ****")
+
 #args.data_prefix = args.data_prefix.split("/")[-1] + ".filler" + str(
 #    args.filler_dim) + ".role" + str(args.role_dim)
 #if args.final_linear != "True":
@@ -636,7 +651,7 @@ if args.train == "True":
         patience=args.patience,
         burn_in=args.burn_in
     )
-print("Finished training")
+print("**** Finished Training ****")
 
 # Load the trained TPDN
 tpr_encoder.load_state_dict(torch.load(weight_file, map_location=device))
@@ -696,6 +711,8 @@ total_symbolic_test_loss = \
     test_symbolic_mse + test_one_hot_loss + test_l2_loss + test_unique_role_loss
 total_continuous_test_loss = \
     test_continuous_mse + test_one_hot_loss + test_l2_loss + test_unique_role_loss
+
+print("**** Finished Computing Test Metrics ****")
 
 if args.output_dir:
     results_page.write(output_dir + "\n")
