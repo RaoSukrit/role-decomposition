@@ -78,7 +78,7 @@ parser.add_argument("--extra_test_set", help="additional file to print predictio
                     default=None)
 parser.add_argument("--train", help="whether or not to train the model", type=str, default="True")
 parser.add_argument("--neighbor_analysis", help="whether to use a neighbor analysis", type=str,
-                    default="True")
+                    default="False")
 parser.add_argument("--digits", help="whether this is one of the digit task", type=str,
                     default="True")
 parser.add_argument("--final_linear", help="whether to have a final linear layer", type=str,
@@ -302,6 +302,9 @@ for line in train_file:
             index_to_filler[filler_counter] = filler
             filler_counter += 1
 
+print("filler_counter", filler_counter)
+print("role_counter", role_counter)
+
 print("**** Finished Loading Train Dataset ****")
 
 dev_file = open(os.path.join(args.data_path, args.data_prefix + ".data_from_dev"), "r")
@@ -508,6 +511,9 @@ all_dev_data = []
 all_test_data = []
 all_extra_data = []
 
+print("filler_counter", filler_counter)
+print("role_counter", role_counter)
+
 if not args.role_learning:
     # Make sure the number of fillers and the number of roles always matches
     for index, element in enumerate(indexed_train):
@@ -631,6 +637,26 @@ print("**** Finished Loading Encoder ****")
 #if args.final_linear != "True":
 #    args.data_prefix += ".no_final"
 
+
+print(f'''n_roles={role_counter}
+n_fillers={filler_counter}
+filler_dim={args.filler_dim}
+final_layer_width={final_layer_width}
+role_dim={args.role_dim}
+pretrained_filler_embeddings={args.pretrained_filler_embedding}
+embedder_squeeze={args.embed_squeeze}
+role_assignment_shrink_filler_dim={args.role_assignment_shrink_filler_dim}
+bidirectional={args.bidirectional}
+num_layers={args.role_assigner_num_layers}
+softmax_roles={args.softmax_roles}
+pretrained_embeddings={weights_matrix}
+one_hot_regularization_weight={args.one_hot_regularization_weight}
+l2_norm_regularization_weight={args.l2_norm_regularization_weight}
+unique_role_regularization_weight={args.unique_role_regularization_weight}'''
+)
+
+
+
 # Train the TPDN
 args.role_prefix = str(args.role_prefix).split("/")[-1]
 if args.train == "True":
@@ -653,8 +679,16 @@ if args.train == "True":
     )
 print("**** Finished Training ****")
 
+weight_file = os.path.join(output_dir, 'model.tpr')
+
+print(tpr_encoder)
+#asdasdasasd
 # Load the trained TPDN
 tpr_encoder.load_state_dict(torch.load(weight_file, map_location=device))
+
+#print(tpr_encoder)
+
+#asdasdasdas
 
 # Prepare test data
 all_test_data_orig = all_test_data
@@ -712,6 +746,16 @@ total_symbolic_test_loss = \
 total_continuous_test_loss = \
     test_continuous_mse + test_one_hot_loss + test_l2_loss + test_unique_role_loss
 
+
+print(f'''test_symbolic_mse={test_symbolic_mse}
+          test_continuous_mse={test_continuous_mse}
+          test_one_hot_loss={test_one_hot_loss}
+          test_l2_loss={test_l2_loss}
+          test_unique_role_loss={test_unique_role_loss}
+          total_symbolic_test_loss={total_symbolic_test_loss}
+          total_continuous_test_loss={total_continuous_test_loss}'''
+          )
+
 print("**** Finished Computing Test Metrics ****")
 
 if args.output_dir:
@@ -755,25 +799,28 @@ results_page.write('Test unique role loss: {}\n'.format(test_unique_role_loss))
 results_page.write('Test l2 norm loss: {}\n'.format(test_l2_loss))
 
 # Run cluster performance analysis
-if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
-    tpr_encoder.train()
-    role_assigner = tpr_encoder.role_assigner
-    roles_true = []
-    roles_predicted = []
-    role_indices = torch.tensor([x for x in range(role_counter)], device=device)
-    role_embeddings = role_assigner.role_embedding(role_indices)
-    num_elements = 0
-    num_elements_role_low = 0
-    for test_example in all_test_data:
-        sequence = test_example[0][0]
-        roles_true.extend(test_example[0][1])
-        role_emb, role_weights = role_assigner(torch.tensor([sequence], device=device))
-        for i in range(len(role_weights)):
-            role_prediction = np.argmax(role_weights[i][0].cpu().detach().numpy())
-            if role_weights[i][0][role_prediction] < .98:
-                num_elements_role_low += 1
-            num_elements += 1
-            roles_predicted.append(role_prediction)
+#if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
+#    tpr_encoder.train()
+#    role_assigner = tpr_encoder.role_assigner
+#    roles_true = []
+#    roles_predicted = []
+#    role_indices = torch.tensor([x for x in range(role_counter)], device=device)
+#    role_embeddings = role_assigner.role_embedding(role_indices)
+#    num_elements = 0
+#    num_elements_role_low = 0
+#    for test_example in all_test_data:
+#        #print(f"test_example, {test_example}")
+#        sequence = test_example[0][0]
+        #print(f"sequence={sequence}")
+        #print(f"role={test_example[0][1]}")
+#        roles_true.extend([test_example[0][1]])
+#        role_emb, role_weights = role_assigner(torch.tensor([sequence], device=device))
+#        for i in range(len(role_weights)):
+#            role_prediction = np.argmax(role_weights[i][0].cpu().detach().numpy())
+#            if role_weights[i][0][role_prediction] < .98:
+#                num_elements_role_low += 1
+#            num_elements += 1
+#            roles_predicted.append(role_prediction)
 
         # Get the predicted role using cosine distance from the role embeddings
         #for i in range(len(role_emb)):
@@ -781,35 +828,36 @@ if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
         #    for j in range(role_counter):
         #        similarities.append(F.cosine_similarity(role_emb[i][0], role_embeddings[j], dim=0))
         #    roles_predicted.append(np.argmax(similarities))
-
-    results_page.write(
-        'number of roles used: {}\n'.format(len(np.unique(roles_predicted)))
-    )
-    results_page.write(
-        'percentage low role prediction: {}\n'.format(100 * num_elements_role_low / num_elements)
-    )
-    results_page.write(
-        'adjusted rand index: {}\n'.format(metrics.adjusted_rand_score(roles_true, roles_predicted))
-    )
-    results_page.write(
-        'normalized mutual info: {}\n'.format(metrics.normalized_mutual_info_score(roles_true, roles_predicted))
-    )
-    results_page.write(
-        'adjusted mutual info: {}\n'.format(metrics.adjusted_mutual_info_score(roles_true, roles_predicted))
-    )
-    results_page.write(
-        'homogenity: {}\n'.format(metrics.homogeneity_score(roles_true, roles_predicted))
-    )
-    results_page.write(
-        'completeness: {}\n'.format(metrics.completeness_score(roles_true, roles_predicted))
-    )
-    results_page.write(
-        'v measure score: {}\n'.format(metrics.v_measure_score(roles_true, roles_predicted))
-    )
-    results_page.write(
-        'fowlkes mallows score: {}\n'.format(metrics.fowlkes_mallows_score(roles_true, roles_predicted))
-    )
-    results_page.write('\n')
+    
+#    print(f"roles_true={len(roles_true)}, rols_prdicted={len(roles_predicted)}")
+#    results_page.write(
+#        'number of roles used: {}\n'.format(len(np.unique(roles_predicted)))
+#    )
+#    results_page.write(
+#        'percentage low role prediction: {}\n'.format(100 * num_elements_role_low / num_elements)
+#    )
+#    results_page.write(
+#        'adjusted rand index: {}\n'.format(metrics.adjusted_rand_score(roles_true, roles_predicted))
+#    )
+#    results_page.write(
+#        'normalized mutual info: {}\n'.format(metrics.normalized_mutual_info_score(roles_true, roles_predicted))
+#    )
+#    results_page.write(
+#        'adjusted mutual info: {}\n'.format(metrics.adjusted_mutual_info_score(roles_true, roles_predicted))
+#    )
+#    results_page.write(
+#        'homogenity: {}\n'.format(metrics.homogeneity_score(roles_true, roles_predicted))
+#    )
+#    results_page.write(
+#        'completeness: {}\n'.format(metrics.completeness_score(roles_true, roles_predicted))
+#    )
+#    results_page.write(
+#        'v measure score: {}\n'.format(metrics.v_measure_score(roles_true, roles_predicted))
+#    )
+#    results_page.write(
+#        'fowlkes mallows score: {}\n'.format(metrics.fowlkes_mallows_score(roles_true, roles_predicted))
+#    )
+#    results_page.write('\n')
 
 # Generate role predictions
 if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):

@@ -25,7 +25,7 @@ class RoleLearningTensorProductEncoder(nn.Module):
             pretrained_filler_embeddings=None,
             embedder_squeeze=None,
             binder="tpr",
-            role_learner_hidden_dim=20,
+            role_learner_hidden_dim=512,
             role_assignment_shrink_filler_dim=None,
             bidirectional=False,
             num_layers=1,
