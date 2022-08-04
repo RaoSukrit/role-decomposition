@@ -45,7 +45,9 @@ class RoleAssignmentLSTM(nn.Module):
         # Or is the output of variable size and we apply a linear transformation
         # to get the weight vector?
         self.lstm = nn.LSTM(filler_embedding_dim, hidden_dim, bidirectional=bidirectional,
-                            num_layers=self.num_layers)
+                            num_layers=self.num_layers,
+                            # batch_first=False
+                            )
         if bidirectional:
             print("The role assignment LSTM is bidirectional")
             self.role_weight_predictions = nn.Linear(hidden_dim * 2, num_roles)
@@ -63,7 +65,7 @@ class RoleAssignmentLSTM(nn.Module):
         self.role_embedding = nn.Embedding(num_roles, role_embedding_dim)
         self.role_indices = torch.tensor([x for x in range(num_roles)], device=device)
 
-    def forward(self, filler_tensor):
+    def forward(self, filler_tensor, filler_lengths=None):
         """
         :param filler_tensor: This input tensor should be of shape (batch_size, sequence_length)
         :param filler_lengths: A list of the length of each sequence in the batch. This is used
@@ -92,6 +94,11 @@ class RoleAssignmentLSTM(nn.Module):
         lstm_out, hidden = self.lstm(fillers_embedded, hidden)
         lstm_out, _ = torch.nn.utils.rnn.pad_packed_sequence(lstm_out)
         '''
+        # print("IN ROLE ASSIGNER")
+        # print(f"fillers_embedded={fillers_embedded.size()}")
+        fillers_embedded = fillers_embedded.squeeze(2)
+        # print(f"fillers_embedded={fillers_embedded.size()}")
+
         lstm_out, hidden = self.lstm(fillers_embedded, hidden)
         role_predictions = self.role_weight_predictions(lstm_out)
 
@@ -115,7 +122,7 @@ class RoleAssignmentLSTM(nn.Module):
             roles = torch.matmul(role_predictions, role_embeddings)
         # roles is size (sequence_length, batch_size, role_embedding_dim)
 
-        return roles, role_predictions
+        return roles, role_predictions, lstm_out, hidden
 
     def init_hidden(self, batch_size):
         layer_multiplier = 1

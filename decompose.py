@@ -14,7 +14,7 @@ import torch.nn.functional as F
 
 import sys
 import os
-
+import json
 import time
 import math
 
@@ -186,6 +186,20 @@ parser.add_argument(
     default=None,
     required=False
 )
+parser.add_argument(
+    "--cogs_src_vocab",
+    help="The location of the src vocab used while training the COGS model",
+    type=str,
+    default=None,
+    required=False
+)
+parser.add_argument(
+    "--cogs_tgt_vocab",
+    help="The location of the tgt vocab used while training the COGS model",
+    type=str,
+    default=None,
+    required=False
+)
 
 
 args = parser.parse_args()
@@ -287,6 +301,24 @@ filler_counter = 0
 role_counter = 0
 max_length = 0
 
+if args.cogs_src_vocab:
+    with open(args.cogs_src_vocab, 'r') as json_fh:
+        src_filler_to_index = json.load(json_fh)
+
+    src_filler_counter = len(src_filler_to_index)
+    src_index_to_filler = {idx: token for token, idx in src_filler_to_index.items()}
+
+    filler_counter = src_filler_counter
+
+if args.cogs_tgt_vocab:
+    with open(args.cogs_tgt_vocab, 'r') as json_fh:
+        tgt_filler_to_index = json.load(json_fh)
+
+    tgt_filler_counter = len(tgt_filler_to_index)
+    tgt_index_to_filler = {idx: token for token, idx in tgt_filler_to_index.items()}
+
+    # filler_counter += tgt_filler_counter
+
 train_file = open(os.path.join(args.data_path, args.data_prefix + ".data_from_train"), "r")
 for line in train_file:
     sequence, vector = line.strip().split("\t")
@@ -296,11 +328,13 @@ for line in train_file:
     if len(sequence.split()) > max_length:
         max_length = len(sequence.split())
 
-    for filler in sequence.split():
-        if filler not in filler_to_index:
-            filler_to_index[filler] = filler_counter
-            index_to_filler[filler_counter] = filler
-            filler_counter += 1
+    if not args.cogs_src_vocab:
+        for filler in sequence.split():
+            if filler not in filler_to_index:
+                filler_to_index[filler] = filler_counter
+                index_to_filler[filler_counter] = filler
+                filler_counter += 1
+
 
 print("filler_counter", filler_counter)
 print("role_counter", role_counter)
@@ -316,11 +350,12 @@ for line in dev_file:
     if len(sequence.split()) > max_length:
         max_length = len(sequence.split())
 
-    for filler in sequence.split():
-        if filler not in filler_to_index:
-            filler_to_index[filler] = filler_counter
-            index_to_filler[filler_counter] = filler
-            filler_counter += 1
+    if not args.cogs_src_vocab:
+        for filler in sequence.split():
+            if filler not in filler_to_index:
+                filler_to_index[filler] = filler_counter
+                index_to_filler[filler_counter] = filler
+                filler_counter += 1
 
 print("**** Finished Loading Dev Dataset ****")
 
@@ -355,11 +390,13 @@ for line in test_file:
     if len(sequence.split()) > max_length:
         max_length = len(sequence.split())
 
-    for filler in sequence.split():
-        if filler not in filler_to_index:
-            filler_to_index[filler] = filler_counter
-            index_to_filler[filler_counter] = filler
-            filler_counter += 1
+    if not args.cogs_tgt_vocab:
+        for filler in sequence.split():
+            if filler not in filler_to_index:
+                filler_to_index[filler] = filler_counter
+                index_to_filler[filler_counter] = filler
+                filler_counter += 1
+
 
 print("**** Finished Loading Test Dataset ****")
 
@@ -384,11 +421,22 @@ if args.digits == "True":
         filler_to_index[str(i)] = i
         index_to_filler[i] = str(i)
 
-indexed_train = [([filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in
+if not args.cogs_src_vocab:
+    indexed_train = [([filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in
                  unindexed_train]
-indexed_dev = [([filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in unindexed_dev]
-indexed_test = [([filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in unindexed_test]
-indexed_extra = [([filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in
+    indexed_dev = [([filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in unindexed_dev]
+else:
+    indexed_train = [([src_filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in
+                 unindexed_train]
+    indexed_dev = [([src_filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in unindexed_dev]
+
+if not args.cogs_tgt_vocab:
+    indexed_test = [([filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in unindexed_test]
+    indexed_extra = [([filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in
+                 unindexed_extra]
+else:
+    indexed_test = [([src_filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in unindexed_test]
+    indexed_extra = [([src_filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in
                  unindexed_extra]
 
 unindexed_train_roles = []
@@ -501,6 +549,15 @@ else:
 
 print("**** Finished Loading Pretrained ROLE Embeddings and ROLE Scheme ****")
 
+# print("filler_to_index")
+# import json
+# with open('filler_to_index.json', 'w') as fh:
+#     json.dump(filler_to_index, fh)
+# # print(filler_to_index)
+# # print(role_to_index)
+# with open('role_to_index.json', 'w') as fh:
+#     json.dump(role_to_index, fh)
+
 indexed_train_roles = [[role_to_index[role] for role in roles] for roles in unindexed_train_roles]
 indexed_dev_roles = [[role_to_index[role] for role in roles] for roles in unindexed_dev_roles]
 indexed_test_roles = [[role_to_index[role] for role in roles] for roles in unindexed_test_roles]
@@ -596,6 +653,8 @@ else:
 if args.role_learning:
     if args.num_roles:
         role_counter = args.num_roles
+
+    print(f"args.bidirectional={args.bidirectional}")
     print("Using RoleLearningTensorProductEncoder with {} roles".format(role_counter))
     tpr_encoder = RoleLearningTensorProductEncoder(
         n_roles=role_counter,
@@ -684,6 +743,7 @@ weight_file = os.path.join(output_dir, 'model.tpr')
 print(tpr_encoder)
 #asdasdasasd
 # Load the trained TPDN
+weight_file = "/Users/sukritrao/Documents/NYU/Coursework/Summer2022/Research/role-analysis/role-decomposition/output/role_output_lstm_bi_1_embd/model.tpr"
 tpr_encoder.load_state_dict(torch.load(weight_file, map_location=device))
 
 #print(tpr_encoder)
