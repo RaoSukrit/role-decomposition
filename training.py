@@ -359,7 +359,7 @@ def train_tpr(batch, tpr_encoder, tpr_optimizer, criterion, one_hot_temperature 
         target_variable = target_variable.cuda()
 
     if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
-        tpr_encoder_output, role_predictions = tpr_encoder(input_fillers, input_roles)
+        tpr_encoder_output, role_predictions, lstm_out, hidden = tpr_encoder(input_fillers, input_roles)
         batch_one_hot_loss, batch_l2_loss, batch_unique_loss = \
             tpr_encoder.get_regularization_loss(role_predictions)
         one_hot_loss += batch_one_hot_loss
@@ -476,7 +476,7 @@ def trainIters_tpr(train_data, dev_data, tpr_encoder, n_epochs,
                 input_roles = input_roles.cuda()
                 target_variable = target_variable.cuda()
             if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
-                out, role_predictions = tpr_encoder(input_fillers, input_roles)
+                out, role_predictions, lstm_out, hidden = tpr_encoder(input_fillers, input_roles)
                 out = out.data
                 batch_one_hot_loss, batch_l2_norm_loss, batch_unique_role_loss = \
                     tpr_encoder.get_regularization_loss(role_predictions)

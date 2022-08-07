@@ -123,7 +123,7 @@ class RoleLearningTensorProductEncoder(nn.Module):
     # a list of roles and returns an single vector encoding it.
     def forward(self, filler_list, role_list_not_used):
         # Embed the fillers
-        filler_list = filler_list.squeeze(-1).transpose(0, 1)
+        #filler_list = filler_list.squeeze(-1).transpose(0, 1)
         # print("IN ROLE LEARNING TPR")
         # print("filler list")
         # print(filler_list.size())
@@ -145,7 +145,7 @@ class RoleLearningTensorProductEncoder(nn.Module):
         # print(f"fillers_embedded={fillers_embedded.size()}")
         # print(f"roles_embedded={roles_embedded.size()}")
 
-        fillers_embedded = fillers_embedded.squeeze(2)
+        #fillers_embedded = fillers_embedded.squeeze(2)
 
         # print(f"fillers_embedded={fillers_embedded.size()}")
 

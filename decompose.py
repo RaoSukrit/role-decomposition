@@ -390,7 +390,7 @@ for line in test_file:
     if len(sequence.split()) > max_length:
         max_length = len(sequence.split())
 
-    if not args.cogs_tgt_vocab:
+    if not args.cogs_src_vocab:
         for filler in sequence.split():
             if filler not in filler_to_index:
                 filler_to_index[filler] = filler_counter
@@ -409,12 +409,13 @@ if args.extra_test_set is not None:
 
         if len(sequence.split()) > max_length:
             max_length = len(sequence.split())
-
-        for filler in sequence.split():
-            if filler not in filler_to_index:
-                filler_to_index[filler] = filler_counter
-                index_to_filler[filler_counter] = filler
-                filler_counter += 1
+        
+        if not args.cogs_src_vocab:
+            for filler in sequence.split():
+                if filler not in filler_to_index:
+                   filler_to_index[filler] = filler_counter
+                   index_to_filler[filler_counter] = filler
+                   filler_counter += 1
 
 if args.digits == "True":
     for i in range(10):
@@ -430,7 +431,7 @@ else:
                  unindexed_train]
     indexed_dev = [([src_filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in unindexed_dev]
 
-if not args.cogs_tgt_vocab:
+if not args.cogs_src_vocab:
     indexed_test = [([filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in unindexed_test]
     indexed_extra = [([filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in
                  unindexed_extra]
@@ -654,7 +655,7 @@ if args.role_learning:
     if args.num_roles:
         role_counter = args.num_roles
 
-    print(f"args.bidirectional={args.bidirectional}")
+    print(f"args.bidirectional={args.bidirectional}, final_layer_width={final_layer_width} filler_dim={args.filler_dim}, role_dim={args.role_dim}")
     print("Using RoleLearningTensorProductEncoder with {} roles".format(role_counter))
     tpr_encoder = RoleLearningTensorProductEncoder(
         n_roles=role_counter,
@@ -738,17 +739,8 @@ if args.train == "True":
     )
 print("**** Finished Training ****")
 
-weight_file = os.path.join(output_dir, 'model.tpr')
-
-print(tpr_encoder)
-#asdasdasasd
 # Load the trained TPDN
-weight_file = "/Users/sukritrao/Documents/NYU/Coursework/Summer2022/Research/role-analysis/role-decomposition/output/role_output_lstm_bi_1_embd/model.tpr"
 tpr_encoder.load_state_dict(torch.load(weight_file, map_location=device))
-
-#print(tpr_encoder)
-
-#asdasdasdas
 
 # Prepare test data
 all_test_data_orig = all_test_data
@@ -780,10 +772,10 @@ for i in range(len(test_data_sets)):
         target_variable = target_variable.cuda()
     if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
         tpr_encoder.eval()
-        encoding, role_predictions = tpr_encoder(input_fillers, input_roles)
+        encoding, role_predictions, lstm_out, hidden = tpr_encoder(input_fillers, input_roles)
         test_symbolic_mse += torch.mean(torch.pow(encoding.data - target_variable.data, 2))
         tpr_encoder.train()
-        encoding, role_predictions = tpr_encoder(input_fillers, input_roles)
+        encoding, role_predictions, lstm_out, hidden = tpr_encoder(input_fillers, input_roles)
         test_continuous_mse += torch.mean(torch.pow(encoding.data - target_variable.data, 2))
 
         batch_one_hot_loss, batch_l2_norm_loss, batch_unique_role_loss = \
@@ -941,11 +933,11 @@ if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
     for line in train_data_file:
         sequence, embedding = line.strip().split('\t')
         sequence = sequence.split()
-        sequence = list(map(lambda filler: filler_to_index[filler], sequence))
+        sequence = list(map(lambda filler: src_filler_to_index[filler], sequence))
         sequence = torch.LongTensor([sequence])
         if use_cuda:
             sequence = sequence.cuda()
-        role_emb, role_weights = role_assigner(sequence)
+        role_emb, role_weights, lstm_out, hidden = role_assigner(sequence)
         roles = []
         for i in range(len(role_weights)):
             roles.append(str(np.argmax(role_weights[i].cpu().detach().numpy())))
@@ -955,11 +947,11 @@ if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
     for line in dev_data_file:
         sequence, embedding = line.strip().split("\t")
         sequence = sequence.split()
-        sequence = list(map(lambda filler: filler_to_index[filler], sequence))
+        sequence = list(map(lambda filler: src_filler_to_index[filler], sequence))
         sequence = torch.LongTensor([sequence])
         if use_cuda:
             sequence = sequence.cuda()
-        role_emb, role_weights = role_assigner(sequence)
+        role_emb, role_weights, lstm_out, hidden = role_assigner(sequence)
         roles = []
         for i in range(len(role_weights)):
             roles.append(str(np.argmax(role_weights[i].cpu().detach().numpy())))
@@ -969,11 +961,11 @@ if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
     for line in test_data_file:
         sequence, embedding = line.strip().split("\t")
         sequence = sequence.split()
-        sequence = list(map(lambda filler: filler_to_index[filler], sequence))
+        sequence = list(map(lambda filler: src_filler_to_index[filler], sequence))
         sequence = torch.LongTensor([sequence])
         if use_cuda:
             sequence = sequence.cuda()
-        role_emb, role_weights = role_assigner(sequence)
+        role_emb, role_weights, lstm_out, hidden = role_assigner(sequence)
         roles = []
         for i in range(len(role_weights)):
             roles.append(str(np.argmax(role_weights[i].cpu().detach().numpy())))

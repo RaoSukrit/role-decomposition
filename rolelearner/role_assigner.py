@@ -94,9 +94,9 @@ class RoleAssignmentLSTM(nn.Module):
         lstm_out, hidden = self.lstm(fillers_embedded, hidden)
         lstm_out, _ = torch.nn.utils.rnn.pad_packed_sequence(lstm_out)
         '''
-        # print("IN ROLE ASSIGNER")
-        # print(f"fillers_embedded={fillers_embedded.size()}")
-        fillers_embedded = fillers_embedded.squeeze(2)
+        #print("IN ROLE ASSIGNER")
+        #print(f"fillers_embedded={fillers_embedded.size()}")
+        #fillers_embedded = fillers_embedded.squeeze(2)
         # print(f"fillers_embedded={fillers_embedded.size()}")
 
         lstm_out, hidden = self.lstm(fillers_embedded, hidden)
