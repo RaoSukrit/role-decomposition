@@ -371,7 +371,8 @@ def train_tpr(batch, tpr_encoder, tpr_optimizer, criterion, one_hot_temperature 
 
     # Find the loss associated with this output
     # loss += criterion(tpr_encoder_output.unsqueeze(0), target_variable)
-
+    print("IN training.py")
+    print(f"tpr_encoder_output={tpr_encoder_output.size()}, target_variable={target_variable.size()}")
     mse_loss += criterion(tpr_encoder_output, target_variable)
 
     loss = mse_loss + one_hot_loss + unique_role_loss + l2_norm_loss

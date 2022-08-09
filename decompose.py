@@ -938,6 +938,7 @@ if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
         if use_cuda:
             sequence = sequence.cuda()
         role_emb, role_weights, lstm_out, hidden = role_assigner(sequence)
+
         roles = []
         for i in range(len(role_weights)):
             roles.append(str(np.argmax(role_weights[i].cpu().detach().numpy())))
@@ -971,6 +972,7 @@ if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
             roles.append(str(np.argmax(role_weights[i].cpu().detach().numpy())))
         test_role_file.write(' '.join(roles) + '\n')
     test_role_file.close()
+    print(f"role_embd={role_emb.shape}, role_weights={role_weights.shape}, lstm_out={lstm_out.shape}, hidden={hidden[0].shape}, {hidden[1].shape}")
 
 # Save the test set predictions, if desired
 if args.save_vectors == "True":
