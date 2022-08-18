@@ -31,7 +31,7 @@ from rolelearner.role_learning_tensor_product_encoder import RoleLearningTensorP
 use_cuda = torch.cuda.is_available()
 
 # Train for a single batch
-# Inputs: 
+# Inputs:
 #   training_set: the batch
 #   encoder: the encoder
 #   decoder: the decoder
@@ -341,7 +341,7 @@ def train_iters(encoder, decoder, train_data, dev_data, file_prefix, input_to_ou
 
 # Training a TPDN for a single batch
 def train_tpr(batch, tpr_encoder, tpr_optimizer, criterion, one_hot_temperature = 1.0):
-    # Zero the gradient 
+    # Zero the gradient
     tpr_optimizer.zero_grad()
 
     one_hot_loss = 0

@@ -39,42 +39,42 @@ def evaluate(encoder1, decoder1, example, input_to_output):
     encoding = encoder1([example])
     predictions = decoder1(encoding, len(example), [parse_digits(example)])
     correct = input_to_output(example)
-        
+
     guessed_seq = []
-        
+
     for prediction in predictions:
         topv, topi = prediction.data.topk(1)
-        ni = topi.item() 
-            
+        ni = topi.item()
+
         guessed_seq.append(ni)
-        
+
     return guessed_seq, encoding
-            
+
 # Given an encoder, decoder, evaluation set, and function for generating
 # the correct outputs, return the number of correct predictions
 # and the total number of predictions
 def score(encoder1, decoder1, evaluation_set, input_to_output):
     total_correct = 0
     total = 0
-    
+
 
     for batch in evaluation_set:
             for example in batch:
                 correct = input_to_output(example)
-        
+
                 guess = evaluate(encoder1, decoder1, example, input_to_output)
-        
+
                 if tuple(guess[0]) == tuple(correct):
                     total_correct += 1
                 total += 1
-        
+
     return total_correct, total
 
 # This function takes a tensor product encoder and a standard decoder, as well as a sequence
 # of digits as inputs. It then uses the tensor product encoder to encode the sequence and uses
 # the standard decoder to decode it, and returns the result.
 def evaluate2(encoder, decoder, example):
-   
+
     if use_cuda:
         if isinstance(encoder, RoleLearningTensorProductEncoder):
             encoder_hidden = encoder(
@@ -92,15 +92,15 @@ def evaluate2(encoder, decoder, example):
         else:
             encoder_hidden = encoder(Variable(torch.LongTensor(example[0])).unsqueeze(0), Variable(torch.LongTensor(example[1])).unsqueeze(0))
     predictions = decoder(encoder_hidden, len(example[0]), [parse_digits(example[0])])
-        
+
     guessed_seq = []
     for prediction in predictions:
         topv, topi = prediction.data.topk(1)
         ni = topi.item()
-            
+
         guessed_seq.append(ni)
-    
-        
+
+
     return guessed_seq
 
 
@@ -108,7 +108,7 @@ def evaluate2(encoder, decoder, example):
 # of digits as inputs. It then uses the tensor product encoder to encode the sequence and uses
 # the standard decoder to decode it, and returns the result.
 def evaluate3(encoder, decoder, example, role_function):
-    #print("EXAMPLE:", example)  
+    #print("EXAMPLE:", example)
 
     if use_cuda:
         encoder_hidden = encoder(Variable(torch.LongTensor(example)).cuda().unsqueeze(0), Variable(torch.LongTensor(role_function(example))).cuda().unsqueeze(0))
@@ -130,7 +130,7 @@ def evaluate3(encoder, decoder, example, role_function):
 # of digits as inputs. It then uses the tensor product encoder to encode the sequence and uses
 # the standard decoder to decode it, and returns the result.
 def evaluate4(encoder, decoder, example, role_function):
-    #print("EXAMPLE:", example)  
+    #print("EXAMPLE:", example)
 
     if use_cuda:
         encoder_hidden = encoder(Variable(torch.LongTensor(example)).cuda().unsqueeze(0), Variable(torch.LongTensor(role_function(example))).cuda().unsqueeze(0))
@@ -158,13 +158,13 @@ def score2(encoder, decoder, input_to_output, test_set, index_to_filler):
         for example in batch:
             example = example[0]
             pred = evaluate2(encoder, decoder, example)
-            
-                     
+
+
             if tuple(input_to_output([index_to_filler[x] for x in example[0]])) == tuple([str(x) for x in pred]):
                 accurate += 1
             total += 1
-    
-    # Gives how many sequences were properly decoded, out of the total number of test sequences    
+
+    # Gives how many sequences were properly decoded, out of the total number of test sequences
     return accurate, total
 
 def scoreSCAN(encoder, decoder, input_to_output, test_set, index_to_filler, output_lang,
@@ -234,12 +234,80 @@ def score3(encoder, decoder, input_to_output, test_set, index_to_filler, role_fu
             #example = example[0]
             pred = evaluate3(encoder, decoder, example, role_function)
 
-            #print(example, pred)         
+            #print(example, pred)
             if tuple(input_to_output([str(index_to_filler[x]) for x in example])) == tuple([str(x) for x in pred]):
                 accurate += 1
             else:
                 print(example, pred)
             total += 1
 
-    # Gives how many sequences were properly decoded, out of the total number of test sequences    
+    # Gives how many sequences were properly decoded, out of the total number of test sequences
+    return accurate, total
+
+
+def scoreCOGS(encoder, decoder, test_set,
+              tgt_filler_to_index, tgt_index_to_filler,
+              feed_input=True, max_length=50):
+    accurate = 0
+    total = 0
+
+    # TODO: need to add tgt from COGS in the test_set (change prepare role data)
+    # TODO: what to do about cell state of LSTM?
+    # max_length = output_lang.max_length
+
+    for batch in test_set:
+        for example in batch:
+            example = example[0]
+            # max_length=example.shape[-1]
+
+            sequence = Variable(torch.LongTensor(example[0])).unsqueeze(0)
+            sequence = sequence.cuda() if use_cuda else sequence
+
+            true_roles = Variable(torch.LongTensor(example[1])).unsqueeze(0)
+            true_roles = true_roles.cuda() if use_cuda else true_roles
+
+            if isinstance(encoder, RoleLearningTensorProductEncoder):
+                encoder_hidden, _, _, hidden = encoder(sequence, true_roles)
+            else:
+                encoder_hidden = encoder(sequence, true_roles)
+
+            # SOS = <s>
+            # EOS = </s>
+            decoder_input = Variable(torch.LongTensor([[tgt_filler_to_index['<s>']]], device=device))
+            decoder_input = decoder_input.unsqueeze(-1).transpose(0, 1)
+            decoder_input = decoder_input.cuda() if use_cuda else decoder_input
+
+            # (num_layers * num_directions, batch, hidden_size)
+            # what should the cell state be for the decoder?
+            decoder_hidden = (encoder_hidden.view((1, 1, -1)), hidden[-1].view((1, 1, -1)))
+            # use last state of encoder to start the decoder
+
+
+            # decoder input must be 3D tensor. [batch_size, seq_length, 1]
+            # decoder_hidden must be a tuple of (hidden_state, cell_state)
+            # Each of these must be [seq_length, batch, embd_dim]
+            decoded_words = []
+            for di in range(max_length):
+                if not feed_input:
+                    decoder_input = torch.zeros_like(decoder_input)
+                decoder_output, decoder_hidden, decoder_raw_score = decoder(decoder_input,
+                                                                            decoder_hidden)
+
+                topv, topi = decoder_output.data.topk(2)
+                ni = topi[0][0]
+
+                # the network terminates the string
+                if ni == tgt_filler_to_index['</s>']:
+                    break
+
+                decoded_words.append(tgt_index_to_filler[ni.item()])
+                decoder_input = Variable(torch.LongTensor([[ni]])).unsqueeze(-1).transpose(0, 1)
+                decoder_input = decoder_input.cuda() if use_cuda else decoder_input
+
+            true_output = ' '.join([tgt_index_to_filler[x] for x in example[0]])
+            decoded_words = ' '.join(decoded_words)
+            if true_output == decoded_words:
+                accurate += 1
+            total += 1
+
     return accurate, total

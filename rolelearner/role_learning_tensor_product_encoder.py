@@ -123,42 +123,21 @@ class RoleLearningTensorProductEncoder(nn.Module):
     # a list of roles and returns an single vector encoding it.
     def forward(self, filler_list, role_list_not_used):
         # Embed the fillers
-        #filler_list = filler_list.squeeze(-1).transpose(0, 1)
-        #print("IN ROLE LEARNING TPR")
-        #print("filler list")
-        #print(filler_list.size())
-        #print(filler_list)
-
         fillers_embedded = self.filler_embedding(filler_list)
-
-        #print(f"filler_embedded={fillers_embedded.shape}")
 
         if self.embed_squeeze:
             fillers_embedded = self.embedding_squeeze_layer(fillers_embedded)
-
-
-        # print(filler_list)
 
         roles_embedded, role_predictions, lstm_out, hidden = self.role_assigner(filler_list)
         roles_embedded = roles_embedded.transpose(0, 1)
 
         # Create the sum of the flattened tensor products of the
         # filler and role embeddings
-        # print("IN ROLE LEARNING TPR")
-        # print(f"fillers_embedded={fillers_embedded.size()}")
-        # print(f"roles_embedded={roles_embedded.size()}")
-
-        #fillers_embedded = fillers_embedded.squeeze(2)
-
-        # print(f"fillers_embedded={fillers_embedded.size()}")
-
         output = self.sum_layer(fillers_embedded, roles_embedded)
 
         # If there is a final linear layer to change the output's dimensionality, apply it
         if self.has_last:
             output = self.last_layer(output)
-
-        # memory_bank = unpack(lstm_out)[0]
 
         return output, role_predictions, lstm_out, hidden
 

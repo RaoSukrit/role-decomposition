@@ -96,8 +96,6 @@ class RoleAssignmentLSTM(nn.Module):
         '''
         #print("IN ROLE ASSIGNER")
         #print(f"fillers_embedded={fillers_embedded.size()}")
-        #fillers_embedded = fillers_embedded.squeeze(2)
-        # print(f"fillers_embedded={fillers_embedded.size()}")
 
         lstm_out, hidden = self.lstm(fillers_embedded, hidden)
         role_predictions = self.role_weight_predictions(lstm_out)

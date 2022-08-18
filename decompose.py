@@ -24,6 +24,7 @@ import argparse
 
 from sklearn import metrics
 
+import model_utils
 from tasks import *
 from training import *
 from models import *
@@ -201,6 +202,40 @@ parser.add_argument(
     required=False
 )
 
+parser.add_argument("--decoder_word_vec_size",
+                    help="Dim of decoder input embeddings",
+                    type=int,
+                    default=512)
+parser.add_argument("--decoder_input_size",
+                    help="Dim of decoder input embeddings",
+                    type=int,
+                    default=512)
+parser.add_argument("--decoder_hidden_size",
+                    help="hidden dim of the decoder network",
+                    type=int,
+                    default=512)
+parser.add_argument("--decoder_num_layers",
+                    help="number of layers to use in the decoder model",
+                    type=int,
+                    default=1)
+parser.add_argument("--decoder_ckpt_path",
+                    help="Path to checkpoint for decoder model",
+                    type=str,
+                    default=None)
+parser.add_argument("--generator_ckpt_path",
+                    help="Path to checkpoint for decoder generator",
+                    type=str,
+                    default=None)
+parser.add_argument("--decoder_freeze_word_embd",
+                    help="""Flag for controlling if the decoder embeddings
+                    should have grad updates switched off""",
+                    action="store_true")
+parser.add_argument("--decoder_feat_merge",
+                    help="""Flag for how the decoder embeddding features
+                    should be merged""",
+                    type=str,
+                    default='concat')
+
 
 args = parser.parse_args()
 
@@ -209,6 +244,7 @@ if args.output_dir:
     output_dir = os.path.join('output/', args.output_dir)
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
+
     with open(os.path.join(output_dir, 'arguments.txt'), 'w') as arguments_file:
         for argument, value in sorted(vars(args).items()):
             arguments_file.write('{}: {}\n'.format(argument, value))
@@ -232,28 +268,57 @@ else:
 
 print("**** Finished Creating LOG Dir ****")
 
+if args.cogs_src_vocab and args.cogs_tgt_vocab:
+    src_filler_to_index, tgt_filler_to_index = \
+        model_utils.build_vocab(args.cogs_src_vocab,
+                                args.cogs_tgt_vocab)
+
+    src_filler_counter = len(src_filler_to_index)
+    src_index_to_filler = {idx: token for token, idx in src_filler_to_index.stoi.items()}
+
+    filler_counter = src_filler_counter
+
+    tgt_filler_counter = len(tgt_filler_to_index)
+    tgt_index_to_filler = {idx: token for token, idx in tgt_filler_to_index.stoi.items()}
+
 # Load the decoder for computing swapping accuracy
 if args.test_decoder == "True" and not args.scan_checkpoint:
-    if args.decoder == "ltr":
-        decoder = DecoderRNN(args.vocab_size, args.decoder_embedding_size, args.hidden_size)
+    if args.decoder == "cogs":
+        # decoder = DecoderRNN(args.vocab_size, args.decoder_embedding_size, args.hidden_size)
+        model_opt = {}
+        model_opt['tgt_word_vec_size'] = args.decoder_word_vec_size
+        model_opt['freeze_word_vecs_dec'] = args.decoder_freeze_word_embd
+        model_opt['feat_merge'] = args.decoder_feat_merge
+        model_opt['input_size'] = args.decoder_input_size
+        model_opt['hidden_size'] = args.decoder_hidden_size
+        model_opt['num_layers'] = args.decoder_num_layers
+        model_opt['decoder_ckpt_path'] = args.decoder_ckpt_path
+        model_opt['generator_ckpt_path'] = args.generator_ckpt_path
+
+        decoder = model_utils.build_decoder_with_embeddings(model_opt, tgt_filler_to_index)
+
     elif args.decoder == "bi":
         decoder = DecoderBiRNN(args.vocab_size, args.decoder_embedding_size, args.hidden_size)
+
     elif args.decoder == "tree":
         decoder = DecoderTreeRNN(args.vocab_size, args.decoder_embedding_size, args.hidden_size)
+
     else:
         print("Invalid decoder type")
 
     input_to_output = lambda seq: transform(seq, args.decoder_task)
 
-    if use_cuda:
-        decoder.load_state_dict(torch.load("models/decoder_" + args.decoder_prefix + ".weights"))
-    else:
-        decoder.load_state_dict(
-            torch.load("models/decoder_" + args.decoder_prefix + ".weights", map_location='cpu')
-        )
+    if args.decoder != 'ltr':
+        if use_cuda:
+            decoder.load_state_dict(torch.load("models/decoder_" + args.decoder_prefix + ".weights"))
+        else:
+            decoder.load_state_dict(
+                torch.load("models/decoder_" + args.decoder_prefix + ".weights", map_location='cpu')
+            )
 
     if use_cuda:
         decoder = decoder.cuda()
+
 elif args.test_decoder == "True" and args.scan_checkpoint:
     decoder = SCANDecoderRNN(
         hidden_size=args.hidden_size,
@@ -300,24 +365,6 @@ index_to_role = {}
 filler_counter = 0
 role_counter = 0
 max_length = 0
-
-if args.cogs_src_vocab:
-    with open(args.cogs_src_vocab, 'r') as json_fh:
-        src_filler_to_index = json.load(json_fh)
-
-    src_filler_counter = len(src_filler_to_index)
-    src_index_to_filler = {idx: token for token, idx in src_filler_to_index.items()}
-
-    filler_counter = src_filler_counter
-
-if args.cogs_tgt_vocab:
-    with open(args.cogs_tgt_vocab, 'r') as json_fh:
-        tgt_filler_to_index = json.load(json_fh)
-
-    tgt_filler_counter = len(tgt_filler_to_index)
-    tgt_index_to_filler = {idx: token for token, idx in tgt_filler_to_index.items()}
-
-    # filler_counter += tgt_filler_counter
 
 train_file = open(os.path.join(args.data_path, args.data_prefix + ".data_from_train"), "r")
 for line in train_file:
@@ -409,7 +456,7 @@ if args.extra_test_set is not None:
 
         if len(sequence.split()) > max_length:
             max_length = len(sequence.split())
-        
+
         if not args.cogs_src_vocab:
             for filler in sequence.split():
                 if filler not in filler_to_index:
@@ -816,18 +863,39 @@ if args.output_dir:
 if args.test_decoder == "True" and not args.scan_checkpoint:
     if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
         tpr_encoder.eval()
-    correct, total = score2(tpr_encoder, decoder, input_to_output, batchify(all_test_data, 1),
-                            index_to_filler)
-    results_page.write(args.data_prefix + str(args.role_prefix) + str(args.role_scheme) +
-                       ".tpr" + " Discrete Swapping encoder performance: " + str(correct)
-                       + " " + str(total) + "\n")
-    if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
-        tpr_encoder.train()
+    if args.decoder == "cogs":
+        correct, total = scoreCOGS(tpr_encoder,
+                                   decoder,
+                                   batchify(all_test_data, 1)
+                                   tpr_filler_to_index,
+                                   tpr_index_to_filler)
+        results_page.write(args.data_prefix + str(args.role_prefix) + str(args.role_scheme) +
+                        ".tpr" + " Discrete Swapping encoder performance: " + str(correct)
+                        + " " + str(total) + "\n")
+        if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
+            tpr_encoder.train()
+            correct, total = scoreCOGS(tpr_encoder,
+                                       decoder,
+                                       batchify(all_test_data, 1)
+                                       tpr_filler_to_index,
+                                       tpr_index_to_filler)
+            results_page.write(args.data_prefix + str(args.role_prefix) + str(args.role_scheme) +
+                            ".tpr" + " Continuous Swapping encoder performance: " + str(correct)
+                            + " " + str(total) + "\n")
+
+    else:
         correct, total = score2(tpr_encoder, decoder, input_to_output, batchify(all_test_data, 1),
                                 index_to_filler)
         results_page.write(args.data_prefix + str(args.role_prefix) + str(args.role_scheme) +
-                           ".tpr" + " Continuous Swapping encoder performance: " + str(correct)
-                           + " " + str(total) + "\n")
+                        ".tpr" + " Discrete Swapping encoder performance: " + str(correct)
+                        + " " + str(total) + "\n")
+        if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
+            tpr_encoder.train()
+            correct, total = score2(tpr_encoder, decoder, input_to_output, batchify(all_test_data, 1),
+                                    index_to_filler)
+            results_page.write(args.data_prefix + str(args.role_prefix) + str(args.role_scheme) +
+                            ".tpr" + " Continuous Swapping encoder performance: " + str(correct)
+                            + " " + str(total) + "\n")
 
 elif args.test_decoder == "True" and args.scan_checkpoint:
     if isinstance(tpr_encoder, RoleLearningTensorProductEncoder):
@@ -880,7 +948,7 @@ results_page.write('Test l2 norm loss: {}\n'.format(test_l2_loss))
         #    for j in range(role_counter):
         #        similarities.append(F.cosine_similarity(role_emb[i][0], role_embeddings[j], dim=0))
         #    roles_predicted.append(np.argmax(similarities))
-    
+
 #    print(f"roles_true={len(roles_true)}, rols_prdicted={len(roles_predicted)}")
 #    results_page.write(
 #        'number of roles used: {}\n'.format(len(np.unique(roles_predicted)))
