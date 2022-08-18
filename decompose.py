@@ -289,7 +289,8 @@ if args.test_decoder == "True" and not args.scan_checkpoint:
         model_opt['tgt_word_vec_size'] = args.decoder_word_vec_size
         model_opt['freeze_word_vecs_dec'] = args.decoder_freeze_word_embd
         model_opt['feat_merge'] = args.decoder_feat_merge
-        model_opt['input_size'] = args.decoder_input_size
+        # model_opt['input_size'] = args.decoder_input_size
+        model_opt['input_size'] = 1024
         model_opt['hidden_size'] = args.decoder_hidden_size
         model_opt['num_layers'] = args.decoder_num_layers
         model_opt['decoder_ckpt_path'] = args.decoder_ckpt_path
@@ -308,7 +309,7 @@ if args.test_decoder == "True" and not args.scan_checkpoint:
 
     input_to_output = lambda seq: transform(seq, args.decoder_task)
 
-    if args.decoder != 'ltr':
+    if args.decoder not in ['ltr', 'cogs']:
         if use_cuda:
             decoder.load_state_dict(torch.load("models/decoder_" + args.decoder_prefix + ".weights"))
         else:
@@ -368,15 +369,21 @@ max_length = 0
 
 train_file = open(os.path.join(args.data_path, args.data_prefix + ".data_from_train"), "r")
 for line in train_file:
-    sequence, vector = line.strip().split("\t")
-    unindexed_train.append(([value for value in sequence.split()], Variable(
-        torch.FloatTensor(np.array([float(value) for value in vector.split()])))))
+    src_sequence, tgt_sequence, vector = line.strip().split("\t")
+    unindexed_train.append(
+                            (
+                             [value for value in src_sequence.split()], Variable(
+                             torch.FloatTensor(np.array([float(value) for value in vector.split()]))),
+                             tgt_sequence
+                            )
+                        )
 
-    if len(sequence.split()) > max_length:
-        max_length = len(sequence.split())
+
+    if len(src_sequence.split()) > max_length:
+        max_length = len(src_sequence.split())
 
     if not args.cogs_src_vocab:
-        for filler in sequence.split():
+        for filler in src_sequence.split():
             if filler not in filler_to_index:
                 filler_to_index[filler] = filler_counter
                 index_to_filler[filler_counter] = filler
@@ -390,15 +397,20 @@ print("**** Finished Loading Train Dataset ****")
 
 dev_file = open(os.path.join(args.data_path, args.data_prefix + ".data_from_dev"), "r")
 for line in dev_file:
-    sequence, vector = line.strip().split("\t")
-    unindexed_dev.append(([value for value in sequence.split()], Variable(
-        torch.FloatTensor(np.array([float(value) for value in vector.split()])))))
+    src_sequence, tgt_sequence, vector = line.strip().split("\t")
+    unindexed_dev.append(
+                            (
+                             [value for value in src_sequence.split()], Variable(
+                             torch.FloatTensor(np.array([float(value) for value in vector.split()]))),
+                             tgt_sequence
+                            )
+                        )
 
-    if len(sequence.split()) > max_length:
-        max_length = len(sequence.split())
+    if len(src_sequence.split()) > max_length:
+        max_length = len(src_sequence.split())
 
     if not args.cogs_src_vocab:
-        for filler in sequence.split():
+        for filler in src_sequence.split():
             if filler not in filler_to_index:
                 filler_to_index[filler] = filler_counter
                 index_to_filler[filler_counter] = filler
@@ -408,37 +420,45 @@ print("**** Finished Loading Dev Dataset ****")
 
 if args.shuffle:
     print("Shuffling the input sequences and corresponding embeddings")
-    sequences = []
+    src_sequences = []
+    tgt_sequences = []
     embeddings = []
-    for sequence, embedding in unindexed_train:
-        sequences.append(sequence)
+    for src_sequence, tgt_sequence, embedding in unindexed_train:
+        src_sequences.append(src_sequence)
         embeddings.append(embedding)
-    shuffle(sequences)
+    shuffle(src_sequences)
     unindexed_train = []
-    for i in range(len(sequences)):
-        unindexed_train.append((sequences[i], embeddings[i]))
+    for i in range(len(src_sequences)):
+        unindexed_train.append((src_sequences[i], embeddings[i], tgt_sequences[i]))
 
-    sequences = []
+    src_sequences = []
+    tgt_sequences = []
     embeddings = []
-    for sequence, embedding in unindexed_dev:
-        sequences.append(sequence)
+    for src_sequence, tgt_sequence, embedding in unindexed_dev:
+        src_sequences.append(src_sequence)
+        tgt_sequences.append(tgt_sequence)
         embeddings.append(embedding)
-    shuffle(sequences)
+    shuffle(src_sequences)
     unindexed_dev = []
-    for i in range(len(sequences)):
-        unindexed_dev.append((sequences[i], embeddings[i]))
+    for i in range(len(src_sequences)):
+        unindexed_dev.append((src_sequences[i], embeddings[i], tgt_sequences[i]))
 
 test_file = open(os.path.join(args.data_path, args.data_prefix + ".data_from_test"), "r")
 for line in test_file:
-    sequence, vector = line.strip().split("\t")
-    unindexed_test.append(([value for value in sequence.split()], Variable(
-        torch.FloatTensor(np.array([float(value) for value in vector.split()])))))
+    src_sequence, tgt_sequence, vector = line.strip().split("\t")
+    unindexed_test.append(
+                            (
+                             [value for value in src_sequence.split()], Variable(
+                             torch.FloatTensor(np.array([float(value) for value in vector.split()]))),
+                             tgt_sequence
+                            )
+                        )
 
-    if len(sequence.split()) > max_length:
-        max_length = len(sequence.split())
+    if len(src_sequence.split()) > max_length:
+        max_length = len(src_sequence.split())
 
     if not args.cogs_src_vocab:
-        for filler in sequence.split():
+        for filler in src_sequence.split():
             if filler not in filler_to_index:
                 filler_to_index[filler] = filler_counter
                 index_to_filler[filler_counter] = filler
@@ -450,15 +470,20 @@ print("**** Finished Loading Test Dataset ****")
 if args.extra_test_set is not None:
     extra_file = open(os.path.join(args.data_path, args.extra_test_set), "r")
     for line in extra_file:
-        sequence, vector = line.strip().split("\t")
-        unindexed_extra.append(([value for value in sequence.split()], Variable(
-            torch.FloatTensor(np.array([float(value) for value in vector.split()]))).cuda()))
+        src_sequence, tgt_sequence, vector = line.strip().split("\t")
+        unindexed_extra.append(
+                                (
+                                 [value for value in src_sequence.split()], Variable(
+                                 torch.FloatTensor(np.array([float(value) for value in vector.split()]))),
+                                 tgt_sequence
+                                )
+                            )
 
-        if len(sequence.split()) > max_length:
-            max_length = len(sequence.split())
+        if len(src_sequence.split()) > max_length:
+            max_length = len(src_sequence.split())
 
         if not args.cogs_src_vocab:
-            for filler in sequence.split():
+            for filler in src_sequence.split():
                 if filler not in filler_to_index:
                    filler_to_index[filler] = filler_counter
                    index_to_filler[filler_counter] = filler
@@ -470,21 +495,21 @@ if args.digits == "True":
         index_to_filler[i] = str(i)
 
 if not args.cogs_src_vocab:
-    indexed_train = [([filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in
+    indexed_train = [([filler_to_index[filler] for filler in elt[0]], elt[1], elt[2]) for elt in
                  unindexed_train]
-    indexed_dev = [([filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in unindexed_dev]
+    indexed_dev = [([filler_to_index[filler] for filler in elt[0]], elt[1], elt[2]) for elt in unindexed_dev]
 else:
-    indexed_train = [([src_filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in
+    indexed_train = [([src_filler_to_index[filler] for filler in elt[0]], elt[1], elt[2]) for elt in
                  unindexed_train]
-    indexed_dev = [([src_filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in unindexed_dev]
+    indexed_dev = [([src_filler_to_index[filler] for filler in elt[0]], elt[1], elt[2]) for elt in unindexed_dev]
 
 if not args.cogs_src_vocab:
-    indexed_test = [([filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in unindexed_test]
-    indexed_extra = [([filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in
+    indexed_test = [([filler_to_index[filler] for filler in elt[0]], elt[1], elt[2]) for elt in unindexed_test]
+    indexed_extra = [([filler_to_index[filler] for filler in elt[0]], elt[1], elt[2]) for elt in
                  unindexed_extra]
 else:
-    indexed_test = [([src_filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in unindexed_test]
-    indexed_extra = [([src_filler_to_index[filler] for filler in elt[0]], elt[1]) for elt in
+    indexed_test = [([src_filler_to_index[filler] for filler in elt[0]], elt[1], elt[2]) for elt in unindexed_test]
+    indexed_extra = [([src_filler_to_index[filler] for filler in elt[0]], elt[1], elt[2]) for elt in
                  unindexed_extra]
 
 unindexed_train_roles = []
@@ -625,38 +650,38 @@ if not args.role_learning:
         if len(element[0]) != len(indexed_train_roles[index]):
             print(index, "ERROR!!!", element[0], indexed_train_roles[index])
         else:
-            all_train_data.append((element[0], indexed_train_roles[index], element[1]))
+            all_train_data.append((element[0], indexed_train_roles[index], element[1], element[2]))
 
     for index, element in enumerate(indexed_dev):
         if len(element[0]) != len(indexed_dev_roles[index]):
             print(index, "ERROR!!!", element[0], indexed_dev_roles[index])
         else:
-            all_dev_data.append((element[0], indexed_dev_roles[index], element[1]))
+            all_dev_data.append((element[0], indexed_dev_roles[index], element[1], element[2]))
 
     for index, element in enumerate(indexed_test):
         if len(element[0]) != len(indexed_test_roles[index]):
             print(index, "ERROR!!!", element[0], indexed_test_roles[index])
         else:
-            all_test_data.append((element[0], indexed_test_roles[index], element[1]))
+            all_test_data.append((element[0], indexed_test_roles[index], element[1], element[2]))
 
     for index, element in enumerate(indexed_extra):
         if len(element[0]) != len(indexed_extra_roles[index]):
             print(index, "ERROR!!!", element[0], indexed_extra_roles[index])
         else:
-            all_extra_data.append((element[0], indexed_extra_roles[index], element[1]))
+            all_extra_data.append((element[0], indexed_extra_roles[index], element[1], element[2]))
 else:
     # Add dummy roles to the training data, these will be ignored since we are role learning
     for index, element in enumerate(indexed_train):
-        all_train_data.append((element[0], 0, element[1]))
+        all_train_data.append((element[0], 0, element[1], element[2]))
 
     for index, element in enumerate(indexed_dev):
-        all_dev_data.append((element[0], 0, element[1]))
+        all_dev_data.append((element[0], 0, element[1], element[2]))
 
     for index, element in enumerate(indexed_test):
-        all_test_data.append((element[0], 0, element[1]))
+        all_test_data.append((element[0], 0, element[1], element[2]))
 
     for index, element in enumerate(indexed_extra):
-        all_extra_data.append((element[0], 0, element[1]))
+        all_extra_data.append((element[0], 0, element[1], element[2]))
 
 weights_matrix = None
 
@@ -793,10 +818,15 @@ tpr_encoder.load_state_dict(torch.load(weight_file, map_location=device))
 all_test_data_orig = all_test_data
 all_test_data = batchify_tpr(all_test_data, 1)
 
-test_data_sets = [(Variable(torch.LongTensor([item[0] for item in batch])),
-                   Variable(torch.LongTensor([item[1] for item in batch])),
-                   torch.cat([item[2].unsqueeze(0).unsqueeze(0) for item in batch], 1)) for
-                  batch in all_test_data]
+test_data_sets = [
+                    (
+                        Variable(torch.LongTensor([item[0] for item in batch])),
+                        Variable(torch.LongTensor([item[1] for item in batch])),
+                        torch.cat([item[2].unsqueeze(0).unsqueeze(0) for item in batch], 1),
+                        [item[3] for item in batch]
+                    )
+                    for batch in all_test_data
+                 ]
 
 neighbor_counter = 0
 neighbor_total_rank = 0
@@ -813,6 +843,7 @@ for i in range(len(test_data_sets)):
     input_fillers = test_data_sets[i][0]
     input_roles = test_data_sets[i][1]
     target_variable = test_data_sets[i][2]
+    tgt_text_seg = test_data_sets[i][3]
     if use_cuda:
         input_fillers = input_fillers.cuda()
         input_roles = input_roles.cuda()
@@ -866,9 +897,9 @@ if args.test_decoder == "True" and not args.scan_checkpoint:
     if args.decoder == "cogs":
         correct, total = scoreCOGS(tpr_encoder,
                                    decoder,
-                                   batchify(all_test_data, 1)
-                                   tpr_filler_to_index,
-                                   tpr_index_to_filler)
+                                   batchify(all_test_data, 1),
+                                   tgt_filler_to_index,
+                                   tgt_index_to_filler)
         results_page.write(args.data_prefix + str(args.role_prefix) + str(args.role_scheme) +
                         ".tpr" + " Discrete Swapping encoder performance: " + str(correct)
                         + " " + str(total) + "\n")
@@ -876,9 +907,9 @@ if args.test_decoder == "True" and not args.scan_checkpoint:
             tpr_encoder.train()
             correct, total = scoreCOGS(tpr_encoder,
                                        decoder,
-                                       batchify(all_test_data, 1)
-                                       tpr_filler_to_index,
-                                       tpr_index_to_filler)
+                                       batchify(all_test_data, 1),
+                                       tgt_filler_to_index,
+                                       tgt_index_to_filler)
             results_page.write(args.data_prefix + str(args.role_prefix) + str(args.role_scheme) +
                             ".tpr" + " Continuous Swapping encoder performance: " + str(correct)
                             + " " + str(total) + "\n")

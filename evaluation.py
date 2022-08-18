@@ -247,20 +247,20 @@ def score3(encoder, decoder, input_to_output, test_set, index_to_filler, role_fu
 
 def scoreCOGS(encoder, decoder, test_set,
               tgt_filler_to_index, tgt_index_to_filler,
-              feed_input=True, max_length=50):
+              feed_input=True, max_length=2000):
     accurate = 0
     total = 0
 
     # TODO: need to add tgt from COGS in the test_set (change prepare role data)
     # TODO: what to do about cell state of LSTM?
-    # max_length = output_lang.max_length
 
     for batch in test_set:
         for example in batch:
-            example = example[0]
-            # max_length=example.shape[-1]
+            print(f"IN SCORE COGS: example = {example}")
+            src_example = example[0]
+            true_output = example[-1]
 
-            sequence = Variable(torch.LongTensor(example[0])).unsqueeze(0)
+            sequence = Variable(torch.LongTensor(src_example[0])).unsqueeze(0)
             sequence = sequence.cuda() if use_cuda else sequence
 
             true_roles = Variable(torch.LongTensor(example[1])).unsqueeze(0)
@@ -279,6 +279,7 @@ def scoreCOGS(encoder, decoder, test_set,
 
             # (num_layers * num_directions, batch, hidden_size)
             # what should the cell state be for the decoder?
+            print(f"IN SCORE COGS: encoder_hidden = {encoder_hidden.shape}, hidden[-1]={hidden[-1].shape}")
             decoder_hidden = (encoder_hidden.view((1, 1, -1)), hidden[-1].view((1, 1, -1)))
             # use last state of encoder to start the decoder
 
@@ -304,7 +305,7 @@ def scoreCOGS(encoder, decoder, test_set,
                 decoder_input = Variable(torch.LongTensor([[ni]])).unsqueeze(-1).transpose(0, 1)
                 decoder_input = decoder_input.cuda() if use_cuda else decoder_input
 
-            true_output = ' '.join([tgt_index_to_filler[x] for x in example[0]])
+            # true_output = ' '.join([tgt_index_to_filler[x] for x in example[0]])
             decoded_words = ' '.join(decoded_words)
             if true_output == decoded_words:
                 accurate += 1

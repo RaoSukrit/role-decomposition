@@ -409,13 +409,24 @@ def trainIters_tpr(train_data, dev_data, tpr_encoder, n_epochs,
     train_data = batchify_tpr(train_data, batch_size)
     dev_data = batchify_tpr(dev_data, batch_size)
 
-    training_sets = [(Variable(torch.LongTensor([item[0] for item in batch])),
-                     Variable(torch.LongTensor([item[1] for item in batch])),
-                     torch.cat([item[2].unsqueeze(0).unsqueeze(0) for item in batch], 1)) for batch in train_data]
+    training_sets = [
+                        (
+                         Variable(torch.LongTensor([item[0] for item in batch])),
+                         Variable(torch.LongTensor([item[1] for item in batch])),
+                         torch.cat([item[2].unsqueeze(0).unsqueeze(0) for item in batch], 1),
+                         [item[2] for item in batch]
+                        ) for batch in train_data
+                     ]
 
-    dev_data_sets = [(Variable(torch.LongTensor([item[0] for item in batch])),
-                     Variable(torch.LongTensor([item[1] for item in batch])),
-                     torch.cat([item[2].unsqueeze(0).unsqueeze(0) for item in batch], 1)) for batch in dev_data]
+    dev_data_sets = [
+                        (
+                         Variable(torch.LongTensor([item[0] for item in batch])),
+                         Variable(torch.LongTensor([item[1] for item in batch])),
+                         torch.cat([item[2].unsqueeze(0).unsqueeze(0) for item in batch], 1),
+                         [item[2] for item in batch]
+                        ) for batch in dev_data
+                     ]
+
 
     reached_max_temp = False
     # Conduct the desired number of training examples

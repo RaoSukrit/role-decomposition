@@ -10,14 +10,14 @@ export filler_dim=512
 export vocab_size=745
 export hidden_size=512
 
-export cogs_src_vocab=""
-export cogs_tgt_vocab=""
-export decoder_ckpt_path=""
-export generator_ckpt_path=""
+export cogs_src_vocab="/Users/sukritrao/Documents/NYU/Coursework/Summer2022/Research/role-analysis/COGS/exp_data/1_example/1_example_src_vocab.json"
+export cogs_tgt_vocab="/Users/sukritrao/Documents/NYU/Coursework/Summer2022/Research/role-analysis/COGS/exp_data/1_example/1_example_tgt_vocab.json"
+export decoder_ckpt_path="/Users/sukritrao/Documents/NYU/Coursework/Summer2022/Research/role-analysis/COGS/src/OpenNMT-py/tf_checkpoints/1_example_lstm_uni_no_att_1layers/decoder/decoder.weights"
+export generator_ckpt_path="/Users/sukritrao/Documents/NYU/Coursework/Summer2022/Research/role-analysis/COGS/src/OpenNMT-py/tf_checkpoints/1_example_lstm_uni_no_att_1layers/decoder/generator.weights"
 
 export decoder="cogs"
 export test_decoder="True"
-export decoder_input_size=$hidden_size
+export decoder_input_size=1024
 export decoder_hidden_size=512
 export decoder_num_layers=1
 export tgt_word_vec_size=512
@@ -39,10 +39,13 @@ python3 decompose.py --data_path=$data_path \
                      --cogs_tgt_vocab=$cogs_tgt_vocab \
                      --test_decoder=$test_decoder \
                      --decoder=$decoder \
+                     --decoder_ckpt_path=$decoder_ckpt_path \
+                     --generator_ckpt_path=$generator_ckpt_path \
                      --decoder_input_size=$decoder_input_size \
                      --decoder_hidden_size=$decoder_hidden_size \
                      --decoder_num_layers=$decoder_num_layers \
-                     --tgt_word_vec_size=$tgt_word_vec_size \
+                     --decoder_word_vec_size=$tgt_word_vec_size \
                      --decoder_feat_merge=$decoder_feat_merge \
-                     --freeze_word_vecs_dec \
+                     --decoder_freeze_word_embd \
+                    #  --train="False" \
                      --patience=$patience
