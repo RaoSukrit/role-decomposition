@@ -643,11 +643,12 @@ class DecoderRNN(nn.Module):
         self.layers = nn.ModuleList()
 
         self.embeddings = embeddings
-        self.dropout = nn.Dropout(dropout_p)
 
         for _ in range(num_layers):
             self.layers.append(nn.LSTMCell(input_size, hidden_size))
             input_size = hidden_size
+
+        self.dropout = nn.Dropout(dropout_p)
 
         # Linear layer giving the output
         self.out = nn.Linear(hidden_size, output_size)
@@ -680,18 +681,20 @@ class DecoderRNN(nn.Module):
     # Forward pass
     def forward(self, input_feed, hidden):
         embedded = self.embeddings(input_feed)
-        embedded = self.dropout(embedded)
 
         # input feed mechanism. concat the hidden state of last timestep with
         # input emebdding
         # will be lstm_out of TPR encoder [batch_size, embd_dim]
         # split along the seq_length dim
-        decoder_input = hidden[0][0]
-        for emb_t in embedded.split(1):
-            decoder_input = torch.cat([emb_t.squeeze(0), decoder_input], 1)
-            decoder_input, hidden = self._run_forward_pass(decoder_input, hidden)
+        # decoder_input = hidden[0][0]
+        # for emb_t in embedded.split(1):
+        #     decoder_input = torch.cat([emb_t.squeeze(0), decoder_input], 1)
+        #     decoder_input, hidden = self._run_forward_pass(decoder_input, hidden)
 
-        logits = self.out(decoder_input)
+        rnn_output, dec_state = self._run_forward_pass(embedded, hidden)
+        rnn_output = self.dropout(rnn_output)
+
+        logits = self.out(rnn_output)
         output = self.softmax(logits)
 
         return output, hidden, logits
